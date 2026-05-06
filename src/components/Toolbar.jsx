@@ -7,6 +7,7 @@ export default function Toolbar({
   onPlay, onPause, onStop, onClear,
   onBpmChange, onToolChange,
   onInstrumentChange,
+  onExport, exporting,
 }) {
   return (
     <div style={{
@@ -190,6 +191,26 @@ export default function Toolbar({
         </div>
 
         <div style={{ flex: 1 }} />
+
+        {/* Export */}
+        <button
+          onClick={onExport}
+          disabled={exporting}
+          title="Export as MP3"
+          style={{
+            padding: '5px 12px',
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 600,
+            background: exporting ? '#f5f5f5' : '#fff',
+            color: exporting ? '#aaa' : '#555',
+            border: '1px solid ' + (exporting ? '#e0e0e0' : '#d0d0d0'),
+            cursor: exporting ? 'wait' : 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {exporting ? '⏳ Rendering…' : '⬇ Export WAV'}
+        </button>
 
         {/* Hint */}
         <span style={{ fontSize: 10, color: '#ccc' }}>right-click to erase</span>

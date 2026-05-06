@@ -3,6 +3,7 @@ import Toolbar   from './components/Toolbar.jsx';
 import RowLabels from './components/RowLabels.jsx';
 import PianoRoll from './components/PianoRoll.jsx';
 import { useAudio } from './hooks/useAudio.js';
+import { exportMp3 } from './utils/exportMp3.js';
 import { INSTRUMENTS, COLS_PER_BAR, LABEL_W } from './constants.js';
 
 const MAX_FIT_BARS  = 4;     // bars that fill the screen before scrolling kicks in
@@ -16,6 +17,7 @@ export default function App() {
   const [isPlaying,          setIsPlaying]          = useState(false);
   const [tool,               setTool]               = useState('draw');
   const [selectedInstrument, setSelectedInstrument] = useState(INSTRUMENTS[0]);
+  const [exporting,          setExporting]          = useState(false);
 
   // ── Measure scroll container to derive canvas display dimensions ──────────
   const scrollRef  = useRef(null);
@@ -104,6 +106,19 @@ export default function App() {
   const handleStop  = useCallback(() => { stop();  setIsPlaying(false); }, [stop]);
   const handleClear = useCallback(() => { stop();  setIsPlaying(false); setNotes([]); }, [stop]);
 
+  const handleExport = useCallback(async () => {
+    if (exporting || notes.length === 0) return;
+    setExporting(true);
+    try {
+      await exportMp3(notes, bpm, numBars);
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert(`Export failed: ${err.message}`);
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, notes, bpm, numBars]);
+
   // ── Section button shared style ───────────────────────────────────────────
   const sectionBtn = (disabled) => ({
     width: 36,
@@ -144,6 +159,8 @@ export default function App() {
         onBpmChange={setBpm}
         onToolChange={setTool}
         onInstrumentChange={setSelectedInstrument}
+        onExport={handleExport}
+        exporting={exporting}
       />
 
       {/* Canvas area */}
