@@ -1,5 +1,6 @@
 import React from 'react';
 import { INSTRUMENTS } from '../constants.js';
+import notedrawLogo from '../assets/notedraw.svg';
 
 export default function Toolbar({
   bpm, isPlaying, tool, spaceHeld,
@@ -29,6 +30,14 @@ export default function Toolbar({
         width: '100%',
         borderBottom: '1px solid #f0f0f0',
       }}>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginRight: 8 }}>
+          <img src={notedrawLogo} style={{ height: 28, width: 28 }} alt="" />
+          <span style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a', letterSpacing: '-0.01em' }}>notedraw</span>
+        </div>
+
+        <div style={{ width: 1, height: 24, background: '#e5e5e5', marginRight: 8 }} />
+
         <span style={{ fontSize: 11, color: '#999', fontWeight: 600, letterSpacing: '0.08em', marginRight: 4, whiteSpace: 'nowrap' }}>
           INSTRUMENT
         </span>
