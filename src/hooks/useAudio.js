@@ -73,21 +73,21 @@ export function useAudio(notes, bpm, numBars) {
       const sixteenth = col % SUBDIVISIONS;
       const time = `${bar}:${beat}:${sixteenth}`;
       const durationSecs = note.durationCols * sixteenthSecs;
-      return { time, row, durationSecs };
+      return { time, noteType: note.type ?? 'piano', pitch: row.pitch, durationSecs };
     });
 
     const part = new Tone.Part((time, event) => {
       const synths = synthsRef.current;
       if (!synths) return;
-      const { row, durationSecs } = event;
+      const { noteType, pitch, durationSecs } = event;
 
-      if (row.type === 'piano') {
-        synths.piano.triggerAttackRelease(row.pitch, durationSecs, time);
-      } else if (row.type === 'hihat') {
+      if (noteType === 'piano') {
+        synths.piano.triggerAttackRelease(pitch, durationSecs, time);
+      } else if (noteType === 'hihat') {
         synths.hihat.triggerAttackRelease('16n', time);
-      } else if (row.type === 'snare') {
+      } else if (noteType === 'snare') {
         synths.snare.triggerAttackRelease('16n', time);
-      } else if (row.type === 'kick') {
+      } else if (noteType === 'kick') {
         synths.kick.triggerAttackRelease('C1', '8n', time);
       }
     }, events);
