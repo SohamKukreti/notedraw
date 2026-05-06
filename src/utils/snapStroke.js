@@ -1,5 +1,5 @@
 import { xToCol, yToRow } from './gridMath.js';
-import { CELL_H } from '../constants.js';
+import { CELL_H, PIANO_ROW_COUNT } from '../constants.js';
 
 /**
  * Converts raw freehand points + selected instrument into a snapped Note.
@@ -19,7 +19,7 @@ export function snapStroke(points, instrument, totalCols) {
     const sortedYs = [...ys].sort((a, b) => a - b);
     const medianY  = sortedYs[Math.floor(sortedYs.length / 2)];
     rowId = yToRow(medianY);
-    rowId = Math.min(rowId, 23); // clamp to piano rows
+    rowId = Math.min(rowId, PIANO_ROW_COUNT - 1); // clamp to piano rows
   }
 
   const rowCenterY    = rowId * CELL_H + CELL_H / 2;

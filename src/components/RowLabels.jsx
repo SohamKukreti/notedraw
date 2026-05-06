@@ -1,5 +1,5 @@
 import React from 'react';
-import { ROWS, LABEL_W } from '../constants.js';
+import { ROWS, LABEL_W, CELL_H } from '../constants.js';
 
 const DRUM_START = ROWS.findIndex(r => r.type !== 'piano');
 
@@ -13,7 +13,6 @@ export default function RowLabels() {
       borderRight: '1px solid #e5e5e5',
       background: '#fafafa',
       userSelect: 'none',
-      alignSelf: 'stretch',
     }}>
       {ROWS.map((row, i) => {
         const isDrumSep = i === DRUM_START;
@@ -21,7 +20,8 @@ export default function RowLabels() {
           <div
             key={row.id}
             style={{
-              flex: 1,
+              height: CELL_H,
+              flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-end',

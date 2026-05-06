@@ -13,7 +13,6 @@ export default function PianoRoll({
   isPlaying,
   selectedInstrument,
   displayW,
-  displayH,
   onStrokeComplete,
   onNoteDelete,
   getProgress,
@@ -31,10 +30,10 @@ export default function PianoRoll({
 
   // Reinitialise HiDPI buffer whenever logical or display size changes
   useEffect(() => {
-    if (displayW > 0 && displayH > 0) {
-      initHiDPI(canvasW, displayW, displayH);
+    if (displayW > 0) {
+      initHiDPI(canvasW, displayW);
     }
-  }, [canvasW, displayW, displayH, initHiDPI]);
+  }, [canvasW, displayW, initHiDPI]);
 
   // Redraw whenever visible content or canvas size changes (not during animation)
   useEffect(() => {
@@ -42,7 +41,7 @@ export default function PianoRoll({
       redraw(notes, livePoints ? { points: livePoints } : null, null,
         selectedInstrument.color, canvasW, totalCols);
     }
-  }, [notes, livePoints, isPlaying, selectedInstrument, canvasW, totalCols, displayW, displayH, redraw]);
+  }, [notes, livePoints, isPlaying, selectedInstrument, canvasW, totalCols, displayW, redraw]);
 
   // Playhead animation loop
   useEffect(() => {
@@ -198,7 +197,7 @@ export default function PianoRoll({
       style={{
         display: 'block',
         width: displayW || canvasW,
-        height: displayH || CANVAS_H,
+        height: CANVAS_H,
         cursor: (rightErasing || tool === 'erase') ? ERASER_CURSOR : 'crosshair',
         touchAction: 'none',
         flexShrink: 0,

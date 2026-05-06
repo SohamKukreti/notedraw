@@ -5,8 +5,9 @@ import PianoRoll from './components/PianoRoll.jsx';
 import { useAudio } from './hooks/useAudio.js';
 import { INSTRUMENTS, COLS_PER_BAR, LABEL_W } from './constants.js';
 
-const MAX_FIT_BARS  = 4;   // bars that fill the screen before scrolling kicks in
-const BTN_W         = 72;  // two 36-px side buttons
+const MAX_FIT_BARS  = 4;     // bars that fill the screen before scrolling kicks in
+const BTN_W         = 72;    // two 36-px side buttons
+const GRID_ZOOM     = 1.2;   // canvas zoom factor (does not affect toolbar / buttons)
 
 export default function App() {
   const [notes,              setNotes]              = useState([]);
@@ -18,14 +19,14 @@ export default function App() {
 
   // ── Measure scroll container to derive canvas display dimensions ──────────
   const scrollRef  = useRef(null);
-  const [gridDims, setGridDims] = useState({ w: 0, h: 0 });
+  const [gridDims, setGridDims] = useState({ w: 0 });
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      setGridDims({ w: Math.round(width), h: Math.round(height) });
+      const { width } = entry.contentRect;
+      setGridDims({ w: Math.round(width) });
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -33,10 +34,9 @@ export default function App() {
 
   // baseCanvasW = canvas width when numBars === MAX_FIT_BARS (fills screen)
   const baseCanvasW    = Math.max(0, gridDims.w - LABEL_W - BTN_W);
-  const canvasDisplayW = numBars <= MAX_FIT_BARS
+  const canvasDisplayW = Math.round((numBars <= MAX_FIT_BARS
     ? baseCanvasW
-    : Math.round(baseCanvasW * numBars / MAX_FIT_BARS);
-  const canvasDisplayH = gridDims.h;
+    : Math.round(baseCanvasW * numBars / MAX_FIT_BARS)) * GRID_ZOOM);
 
   // ── Spacebar panning ──────────────────────────────────────────────────────
   const panStart    = useRef(null);
@@ -175,7 +175,6 @@ export default function App() {
             spaceHeld={spaceHeld}
             selectedInstrument={selectedInstrument}
             displayW={canvasDisplayW}
-            displayH={canvasDisplayH}
             onStrokeComplete={note => setNotes(prev => [...prev, note])}
             onNoteDelete={id   => setNotes(prev => prev.filter(n => n.id !== id))}
             getProgress={getProgress}

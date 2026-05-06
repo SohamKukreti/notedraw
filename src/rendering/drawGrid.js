@@ -1,4 +1,4 @@
-import { ROWS, CELL_W, CELL_H, CANVAS_H, SUBDIVISIONS, COLS_PER_BAR } from '../constants.js';
+import { ROWS, CELL_W, CELL_H, CANVAS_H, SUBDIVISIONS, COLS_PER_BAR, PIANO_ROW_COUNT } from '../constants.js';
 
 const DRUM_START_ROW = ROWS.findIndex(r => r.type !== 'piano');
 
@@ -25,6 +25,17 @@ export function drawGrid(ctx, totalCols, canvasW) {
     ctx.lineTo(canvasW, (i + 1) * CELL_H);
     ctx.stroke();
   });
+
+  // Octave boundary lines (every 12 rows within piano section)
+  for (let oct = 1; oct < PIANO_ROW_COUNT / 12; oct++) {
+    const y = oct * 12 * CELL_H;
+    ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvasW, y);
+    ctx.stroke();
+  }
 
   // Bold separator between piano and drum sections
   ctx.strokeStyle = 'rgba(0,0,0,0.2)';
