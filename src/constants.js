@@ -40,7 +40,7 @@ export const getTotalCols = (numBars) => numBars * COLS_PER_BAR;
 
 // ─── Instruments (user-selectable from toolbar) ───────────────────────────────
 export const INSTRUMENTS = [
-  { id: 'piano', label: 'Piano',  color: '#22c55e', fixedRowId: null },
+  { id: 'piano', label: 'Synth',  color: '#22c55e', fixedRowId: null },
   { id: 'hihat', label: 'Hi-hat', color: '#ef4444', fixedRowId: 24  },
   { id: 'snare', label: 'Snare',  color: '#f97316', fixedRowId: 25  },
   { id: 'kick',  label: 'Kick',   color: '#1a1a1a', fixedRowId: 26  },

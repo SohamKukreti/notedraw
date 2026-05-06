@@ -3,7 +3,10 @@ import Toolbar   from './components/Toolbar.jsx';
 import RowLabels from './components/RowLabels.jsx';
 import PianoRoll from './components/PianoRoll.jsx';
 import { useAudio } from './hooks/useAudio.js';
-import { INSTRUMENTS, CANVAS_H, COLS_PER_BAR } from './constants.js';
+import { INSTRUMENTS, COLS_PER_BAR, LABEL_W } from './constants.js';
+
+const MAX_FIT_BARS  = 4;   // bars that fill the screen before scrolling kicks in
+const BTN_W         = 72;  // two 36-px side buttons
 
 export default function App() {
   const [notes,              setNotes]              = useState([]);
@@ -13,8 +16,29 @@ export default function App() {
   const [tool,               setTool]               = useState('draw');
   const [selectedInstrument, setSelectedInstrument] = useState(INSTRUMENTS[0]);
 
+  // ── Measure scroll container to derive canvas display dimensions ──────────
+  const scrollRef  = useRef(null);
+  const [gridDims, setGridDims] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setGridDims({ w: Math.round(width), h: Math.round(height) });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // baseCanvasW = canvas width when numBars === MAX_FIT_BARS (fills screen)
+  const baseCanvasW    = Math.max(0, gridDims.w - LABEL_W - BTN_W);
+  const canvasDisplayW = numBars <= MAX_FIT_BARS
+    ? baseCanvasW
+    : Math.round(baseCanvasW * numBars / MAX_FIT_BARS);
+  const canvasDisplayH = gridDims.h;
+
   // ── Spacebar panning ──────────────────────────────────────────────────────
-  const scrollRef   = useRef(null);
   const panStart    = useRef(null);
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [panning,   setPanning]   = useState(false);
@@ -69,8 +93,8 @@ export default function App() {
 
   const handleRemoveBar = useCallback(() => {
     if (numBars <= 1) return;
-    const newNumBars   = numBars - 1;
-    const cutoffCol    = newNumBars * COLS_PER_BAR;
+    const newNumBars = numBars - 1;
+    const cutoffCol  = newNumBars * COLS_PER_BAR;
     setNumBars(newNumBars);
     setNotes(prev => prev.filter(n => n.startCol < cutoffCol));
   }, [numBars]);
@@ -81,9 +105,9 @@ export default function App() {
   const handleClear = useCallback(() => { stop();  setIsPlaying(false); setNotes([]); }, [stop]);
 
   // ── Section button shared style ───────────────────────────────────────────
-  const sectionBtn = (color, hoverBg, hoverColor, disabled) => ({
+  const sectionBtn = (disabled) => ({
     width: 36,
-    height: CANVAS_H,
+    alignSelf: 'stretch',
     flexShrink: 0,
     display: 'flex',
     flexDirection: 'column',
@@ -122,41 +146,40 @@ export default function App() {
         onInstrumentChange={setSelectedInstrument}
       />
 
-      {/* Scrollable canvas area */}
+      {/* Canvas area */}
       <div
         ref={scrollRef}
         style={{
           flex: 1,
+          minHeight: 0,
           overflow: 'auto',
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: 'stretch',
           background: '#f5f5f5',
-          padding: 12,
           userSelect: 'none',
         }}
       >
+        {/* Inner row — grows wider than viewport when bars > MAX_FIT_BARS */}
         <div style={{
           display: 'flex',
-          alignItems: 'flex-start',
-          minWidth: 'max-content',
-          boxShadow: '0 1px 12px rgba(0,0,0,0.1)',
-          borderRadius: 4,
+          alignItems: 'stretch',
+          minWidth: LABEL_W + canvasDisplayW + BTN_W,
+          flex: 1,
         }}>
-          {/* Labels + canvas */}
-          <div style={{ display: 'flex', borderRadius: '4px 0 0 4px', overflow: 'hidden' }}>
-            <RowLabels />
-            <PianoRoll
-              notes={notes}
-              numBars={numBars}
-              tool={tool}
-              isPlaying={isPlaying}
-              spaceHeld={spaceHeld}
-              selectedInstrument={selectedInstrument}
-              onStrokeComplete={note => setNotes(prev => [...prev, note])}
-              onNoteDelete={id   => setNotes(prev => prev.filter(n => n.id !== id))}
-              getProgress={getProgress}
-            />
-          </div>
+          <RowLabels />
+          <PianoRoll
+            notes={notes}
+            numBars={numBars}
+            tool={tool}
+            isPlaying={isPlaying}
+            spaceHeld={spaceHeld}
+            selectedInstrument={selectedInstrument}
+            displayW={canvasDisplayW}
+            displayH={canvasDisplayH}
+            onStrokeComplete={note => setNotes(prev => [...prev, note])}
+            onNoteDelete={id   => setNotes(prev => prev.filter(n => n.id !== id))}
+            getProgress={getProgress}
+          />
 
           {/* Remove bar button */}
           <button
@@ -164,7 +187,7 @@ export default function App() {
             disabled={numBars <= 1}
             title="Remove last bar"
             style={{
-              ...sectionBtn('#e55', '#fff0f0', '#e55', numBars <= 1),
+              ...sectionBtn(numBars <= 1),
               borderLeft: '1px solid #e8e8e8',
             }}
             onMouseEnter={e => { if (numBars > 1) { e.currentTarget.style.background = '#fff0f0'; e.currentTarget.style.color = '#e55'; } }}
@@ -179,9 +202,8 @@ export default function App() {
             onClick={handleAddBar}
             title="Add one bar"
             style={{
-              ...sectionBtn('#22c55e', '#f0f7f0', '#22c55e', false),
+              ...sectionBtn(false),
               borderLeft: '2px dashed #d0d0d0',
-              borderRadius: '0 4px 4px 0',
             }}
             onMouseEnter={e => { e.currentTarget.style.background = '#f0f7f0'; e.currentTarget.style.color = '#22c55e'; }}
             onMouseLeave={e => { e.currentTarget.style.background = '#fafafa'; e.currentTarget.style.color = '#aaa'; }}
@@ -192,7 +214,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Spacebar pan overlay — intercepts all mouse events when space is held */}
+      {/* Spacebar pan overlay */}
       {spaceHeld && (
         <div
           style={{
