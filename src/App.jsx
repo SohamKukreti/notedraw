@@ -4,7 +4,10 @@ import RowLabels from './components/RowLabels.jsx';
 import PianoRoll from './components/PianoRoll.jsx';
 import { useAudio } from './hooks/useAudio.js';
 import { exportMp3 } from './utils/exportMp3.js';
-import { INSTRUMENTS, COLS_PER_BAR, LABEL_W } from './constants.js';
+import { INSTRUMENTS, COLS_PER_BAR, LABEL_W, CELL_H } from './constants.js';
+
+// E4: octave 4 is index 6 in [10,9,8,7,6,5,4,3,2,1,0], E is index 7 in chromatic
+const E4_Y = (6 * 12 + 7) * CELL_H; // 2054 px from top of canvas
 
 const MAX_FIT_BARS  = 4;     // bars that fill the screen before scrolling kicks in
 const BTN_W         = 72;    // two 36-px side buttons
@@ -20,7 +23,8 @@ export default function App() {
   const [exporting,          setExporting]          = useState(false);
 
   // ── Measure scroll container to derive canvas display dimensions ──────────
-  const scrollRef  = useRef(null);
+  const scrollRef           = useRef(null);
+  const initialScrollDone   = useRef(false);
   const [gridDims, setGridDims] = useState({ w: 0 });
 
   useEffect(() => {
@@ -29,6 +33,11 @@ export default function App() {
     const ro = new ResizeObserver(([entry]) => {
       const { width } = entry.contentRect;
       setGridDims({ w: Math.round(width) });
+      // Centre E4 vertically on first paint
+      if (!initialScrollDone.current && el.clientHeight > 0) {
+        el.scrollTop = E4_Y - el.clientHeight / 2;
+        initialScrollDone.current = true;
+      }
     });
     ro.observe(el);
     return () => ro.disconnect();
