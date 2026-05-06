@@ -2,6 +2,8 @@
 
 A browser-based music loop creator where you draw freehand strokes on a MIDI grid and hear them play back. Each stroke snaps to the grid while preserving the hand-drawn shape — the canvas is your score.
 
+https://github.com/user-attachments/assets/150c094a-1077-4854-8117-81c907f8de5a
+
 ## How it works
 
 Draw horizontally across any row to place a note. The row determines the pitch or drum sound; the horizontal span determines the timing and duration. Strokes are rendered as smooth brush curves, so the canvas looks like a painting.
