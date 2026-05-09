@@ -24,15 +24,23 @@ function drawBrushPath(ctx, points) {
   ctx.stroke();
 }
 
-export function drawNotes(ctx, notes) {
+export function drawNotes(ctx, notes, selectedNoteIds = [], moveDelta = null) {
+  const selectedSet = new Set(selectedNoteIds);
+
   notes.forEach(note => {
     if (!note.points || note.points.length === 0) return;
+
+    const isSelected = selectedSet.has(note.id);
+    const offsetX = (isSelected && moveDelta) ? moveDelta.dx : 0;
+    const offsetY = (isSelected && moveDelta) ? moveDelta.dy : 0;
+
+    const pts = note.points.map(p => ({ x: p.x + offsetX, y: p.y + offsetY }));
 
     ctx.strokeStyle = note.color;
     ctx.lineWidth   = CELL_H * 0.52;
     ctx.lineCap     = 'round';
     ctx.lineJoin    = 'round';
 
-    drawBrushPath(ctx, note.points);
+    drawBrushPath(ctx, pts);
   });
 }

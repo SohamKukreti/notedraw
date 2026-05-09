@@ -3,26 +3,27 @@ import Toolbar   from './components/Toolbar.jsx';
 import RowLabels from './components/RowLabels.jsx';
 import PianoRoll from './components/PianoRoll.jsx';
 import { useAudio } from './hooks/useAudio.js';
+import { useUndoRedo } from './hooks/useUndoRedo.js';
 import { exportMp3 } from './utils/exportMp3.js';
-import { INSTRUMENTS, COLS_PER_BAR, LABEL_W, CELL_H } from './constants.js';
+import { INSTRUMENTS, COLS_PER_BAR, LABEL_W, CELL_H, CELL_W, getTotalCols } from './constants.js';
+import { serializeNotes } from './selection.js';
 
-// E4: octave 4 is index 6 in [10,9,8,7,6,5,4,3,2,1,0], E is index 7 in chromatic
-const E4_Y = (6 * 12 + 7) * CELL_H; // 2054 px from top of canvas
+const E4_Y = (6 * 12 + 7) * CELL_H;
 
-const MAX_FIT_BARS  = 4;     // bars that fill the screen before scrolling kicks in
-const BTN_W         = 72;    // two 36-px side buttons
-const GRID_ZOOM     = 1.2;   // canvas zoom factor (does not affect toolbar / buttons)
+const MAX_FIT_BARS  = 4;
+const BTN_W         = 72;
+const GRID_ZOOM     = 1.2;
 
 export default function App() {
-  const [notes,              setNotes]              = useState([]);
+  const { present: notes, set: setNotes, undo, redo, canUndo, canRedo } = useUndoRedo([]);
   const [numBars,            setNumBars]            = useState(1);
   const [bpm,                setBpm]                = useState(120);
   const [isPlaying,          setIsPlaying]          = useState(false);
   const [tool,               setTool]               = useState('draw');
   const [selectedInstrument, setSelectedInstrument] = useState(INSTRUMENTS[0]);
   const [exporting,          setExporting]          = useState(false);
+  const [selectedNoteIds,    setSelectedNoteIds]    = useState([]);
 
-  // ── Measure scroll container to derive canvas display dimensions ──────────
   const scrollRef           = useRef(null);
   const initialScrollDone   = useRef(false);
   const [gridDims, setGridDims] = useState({ w: 0 });
@@ -33,7 +34,6 @@ export default function App() {
     const ro = new ResizeObserver(([entry]) => {
       const { width } = entry.contentRect;
       setGridDims({ w: Math.round(width) });
-      // Centre E4 vertically on first paint
       if (!initialScrollDone.current && el.clientHeight > 0) {
         el.scrollTop = E4_Y - el.clientHeight / 2;
         initialScrollDone.current = true;
@@ -43,13 +43,11 @@ export default function App() {
     return () => ro.disconnect();
   }, []);
 
-  // baseCanvasW = canvas width when numBars === MAX_FIT_BARS (fills screen)
   const baseCanvasW    = Math.max(0, gridDims.w - LABEL_W - BTN_W);
   const canvasDisplayW = Math.round((numBars <= MAX_FIT_BARS
     ? baseCanvasW
     : Math.round(baseCanvasW * numBars / MAX_FIT_BARS)) * GRID_ZOOM);
 
-  // ── Spacebar panning ──────────────────────────────────────────────────────
   const panStart    = useRef(null);
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [panning,   setPanning]   = useState(false);
@@ -97,7 +95,6 @@ export default function App() {
     panStart.current = null;
   }, []);
 
-  // ── Bar management ────────────────────────────────────────────────────────
   const { play, pause, stop, getProgress } = useAudio(notes, bpm, numBars);
 
   const handleAddBar = useCallback(() => setNumBars(n => n + 1), []);
@@ -108,12 +105,12 @@ export default function App() {
     const cutoffCol  = newNumBars * COLS_PER_BAR;
     setNumBars(newNumBars);
     setNotes(prev => prev.filter(n => n.startCol < cutoffCol));
-  }, [numBars]);
+  }, [numBars, setNotes]);
 
   const handlePlay  = useCallback(async () => { await play(); setIsPlaying(true);  }, [play]);
   const handlePause = useCallback(() => { pause(); setIsPlaying(false); }, [pause]);
   const handleStop  = useCallback(() => { stop();  setIsPlaying(false); }, [stop]);
-  const handleClear = useCallback(() => { stop();  setIsPlaying(false); setNotes([]); }, [stop]);
+  const handleClear = useCallback(() => { stop();  setIsPlaying(false); setNotes([]); setSelectedNoteIds([]); }, [stop, setNotes]);
 
   const handleExport = useCallback(async () => {
     if (exporting || notes.length === 0) return;
@@ -128,7 +125,150 @@ export default function App() {
     }
   }, [exporting, notes, bpm, numBars]);
 
-  // ── Section button shared style ───────────────────────────────────────────
+  const handleSelectNotes = useCallback((ids, replace) => {
+    setSelectedNoteIds(prev => {
+      if (replace) return ids;
+      const set = new Set(prev);
+      ids.forEach(id => set.add(id));
+      return Array.from(set);
+    });
+  }, []);
+
+  const handleDeselectAll = useCallback(() => {
+    setSelectedNoteIds([]);
+  }, []);
+
+  const handleNotesMove = useCallback((ids, deltaCol, deltaRow) => {
+    const totalCols = getTotalCols(numBars);
+    setNotes(prev => {
+      return prev.map(n => {
+        if (!ids.includes(n.id)) return n;
+        const newStartCol = Math.max(0, Math.min(totalCols - 1, n.startCol + deltaCol));
+        const newRowId    = Math.max(0, Math.min(131, n.rowId + deltaRow));
+        return {
+          ...n,
+          startCol: newStartCol,
+          rowId: newRowId,
+          points: n.points.map(p => ({
+            x: p.x + deltaCol * CELL_W,
+            y: p.y + deltaRow * CELL_H,
+          })),
+        };
+      });
+    });
+  }, [numBars, setNotes]);
+
+  const handleDeleteSelected = useCallback(() => {
+    if (selectedNoteIds.length === 0) return;
+    setNotes(prev => prev.filter(n => !selectedNoteIds.includes(n.id)));
+    setSelectedNoteIds([]);
+  }, [selectedNoteIds, setNotes]);
+
+  const clipboardRef = useRef(null);
+
+  const handleCopy = useCallback(() => {
+    if (selectedNoteIds.length === 0) return;
+    clipboardRef.current = JSON.parse(serializeNotes(notes, selectedNoteIds));
+  }, [notes, selectedNoteIds]);
+
+  const handlePaste = useCallback(() => {
+    if (!clipboardRef.current || clipboardRef.current.length === 0) return;
+
+    const src = clipboardRef.current;
+    let minCol = Infinity;
+    let minRow = Infinity;
+    src.forEach(n => {
+      if (n.startCol < minCol) minCol = n.startCol;
+      if (n.rowId < minRow) minRow = n.rowId;
+    });
+
+    const now = Date.now();
+    const totalCols = getTotalCols(numBars);
+    const newNotes = src.map((n, i) => {
+      const newCol = Math.max(0, Math.min(totalCols - 1, n.startCol + 1));
+      const newRow = Math.max(0, Math.min(131, n.rowId + 1));
+      return {
+        ...n,
+        id: `${now}-${i}-${Math.random().toString(36).slice(2, 8)}`,
+        startCol: newCol,
+        rowId: newRow,
+        points: n.points.map(p => ({
+          x: p.x + CELL_W,
+          y: p.y + CELL_H,
+        })),
+      };
+    });
+
+    clipboardRef.current = clipboardRef.current.map(n => {
+      const newCol = Math.max(0, Math.min(totalCols - 1, n.startCol + 1));
+      const newRow = Math.max(0, Math.min(131, n.rowId + 1));
+      return {
+        ...n,
+        startCol: newCol,
+        rowId: newRow,
+        points: n.points.map(p => ({
+          x: p.x + CELL_W,
+          y: p.y + CELL_H,
+        })),
+      };
+    });
+
+    setNotes(prev => [...prev, ...newNotes]);
+    setSelectedNoteIds(newNotes.map(n => n.id));
+  }, [numBars, setNotes]);
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      const isCtrl = e.ctrlKey || e.metaKey;
+
+      if (isCtrl && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if ((isCtrl && e.shiftKey && e.key === 'Z') || (isCtrl && e.key === 'y')) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (isCtrl && e.key === 'c') {
+        e.preventDefault();
+        handleCopy();
+        return;
+      }
+      if (isCtrl && e.key === 'v') {
+        e.preventDefault();
+        handlePaste();
+        return;
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (e.target.tagName !== 'INPUT') {
+          e.preventDefault();
+          handleDeleteSelected();
+          return;
+        }
+      }
+      if (e.key === 'Escape') {
+        handleDeselectAll();
+        return;
+      }
+      if (e.key === 'v' && !isCtrl && e.target.tagName !== 'INPUT') {
+        setTool('select');
+        return;
+      }
+      if (e.key === 'd' && !isCtrl && e.target.tagName !== 'INPUT') {
+        setTool('draw');
+        return;
+      }
+      if (e.key === 'e' && !isCtrl && e.target.tagName !== 'INPUT') {
+        setTool('erase');
+        return;
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [undo, redo, handleCopy, handlePaste, handleDeleteSelected, handleDeselectAll]);
+
   const sectionBtn = (disabled) => ({
     width: 36,
     alignSelf: 'stretch',
@@ -170,9 +310,12 @@ export default function App() {
         onInstrumentChange={setSelectedInstrument}
         onExport={handleExport}
         exporting={exporting}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
       />
 
-      {/* Canvas area */}
       <div
         ref={scrollRef}
         style={{
@@ -185,7 +328,6 @@ export default function App() {
           userSelect: 'none',
         }}
       >
-        {/* Inner row — grows wider than viewport when bars > MAX_FIT_BARS */}
         <div style={{
           display: 'flex',
           alignItems: 'stretch',
@@ -201,12 +343,16 @@ export default function App() {
             spaceHeld={spaceHeld}
             selectedInstrument={selectedInstrument}
             displayW={canvasDisplayW}
+            selectedNoteIds={selectedNoteIds}
             onStrokeComplete={note => setNotes(prev => [...prev, note])}
             onNoteDelete={id   => setNotes(prev => prev.filter(n => n.id !== id))}
+            onSelectNotes={handleSelectNotes}
+            onDeselectAll={handleDeselectAll}
+            onNotesMove={handleNotesMove}
+            onDeleteSelected={handleDeleteSelected}
             getProgress={getProgress}
           />
 
-          {/* Remove bar button */}
           <button
             onClick={handleRemoveBar}
             disabled={numBars <= 1}
@@ -222,7 +368,6 @@ export default function App() {
             <span style={{ fontSize: 8, letterSpacing: '0.06em', fontWeight: 600, writingMode: 'vertical-rl' }}>DEL BAR</span>
           </button>
 
-          {/* Add bar button */}
           <button
             onClick={handleAddBar}
             title="Add one bar"
@@ -239,7 +384,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Spacebar pan overlay */}
       {spaceHeld && (
         <div
           style={{

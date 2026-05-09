@@ -9,6 +9,7 @@ export default function Toolbar({
   onBpmChange, onToolChange,
   onInstrumentChange,
   onExport, exporting,
+  onUndo, onRedo, canUndo, canRedo,
 }) {
   return (
     <div style={{
@@ -93,7 +94,7 @@ export default function Toolbar({
 
         {/* Tool toggle */}
         <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #e0e0e0' }}>
-          {[['draw', '✏️', 'Draw'], ['erase', '🧹', 'Erase']].map(([t, icon, label]) => (
+          {[['select', '🔲', 'Select'], ['draw', '✏️', 'Draw'], ['erase', '🧹', 'Erase']].map(([t, icon, label]) => (
             <button
               key={t}
               onClick={() => onToolChange(t)}
@@ -111,6 +112,46 @@ export default function Toolbar({
               {icon} {label}
             </button>
           ))}
+        </div>
+
+        {/* Undo/Redo */}
+        <div style={{ display: 'flex', gap: 4, marginLeft: 4 }}>
+          <button
+            onClick={onUndo}
+            disabled={!canUndo}
+            title="Undo (Ctrl+Z)"
+            style={{
+              padding: '4px 10px',
+              fontSize: 12,
+              fontWeight: 600,
+              background: '#fff',
+              color: canUndo ? '#555' : '#ccc',
+              border: '1px solid #e0e0e0',
+              borderRadius: 6,
+              cursor: canUndo ? 'pointer' : 'not-allowed',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            ↩ Undo
+          </button>
+          <button
+            onClick={onRedo}
+            disabled={!canRedo}
+            title="Redo (Ctrl+Y)"
+            style={{
+              padding: '4px 10px',
+              fontSize: 12,
+              fontWeight: 600,
+              background: '#fff',
+              color: canRedo ? '#555' : '#ccc',
+              border: '1px solid #e0e0e0',
+              borderRadius: 6,
+              cursor: canRedo ? 'pointer' : 'not-allowed',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            ↪ Redo
+          </button>
         </div>
 
         {/* Space = hand tool indicator */}
