@@ -8,14 +8,42 @@ export function useAudio(notes, bpm, numBars) {
   const notesRef   = useRef(notes);
   notesRef.current = notes;
 
+  const extrasRef = useRef([]); // non-synth Tone nodes (filters, etc.)
+
   // ── Initialize synths once ───────────────────────────────────────────────
   useEffect(() => {
+    // Piano — warm triangle, medium decay
     const piano = new Tone.PolySynth(Tone.Synth, {
       oscillator: { type: 'triangle' },
-      envelope: { attack: 0.005, decay: 0.1, sustain: 0.4, release: 0.08 },
+      envelope: { attack: 0.005, decay: 0.4, sustain: 0.1, release: 1.2 },
+      volume: -8,
+    }).toDestination();
+    piano.maxPolyphony = 32;
+
+    // Kalimba — pure sine pluck, no sustain
+    const kalimba = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'sine' },
+      envelope: { attack: 0.001, decay: 0.45, sustain: 0.0, release: 0.4 },
       volume: -6,
     }).toDestination();
-    piano.maxPolyphony = 64;
+    kalimba.maxPolyphony = 32;
+
+    // Bass — fat sawtooth through a lowpass filter
+    const bassFilter = new Tone.Filter({ frequency: 600, type: 'lowpass', rolloff: -24 }).toDestination();
+    const bass = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'sawtooth' },
+      envelope: { attack: 0.04, decay: 0.1, sustain: 0.9, release: 0.3 },
+      volume: -5,
+    }).connect(bassFilter);
+    bass.maxPolyphony = 8;
+
+    // Strings — slow-attack sawtooth pad
+    const strings = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'sawtooth' },
+      envelope: { attack: 0.35, decay: 0.1, sustain: 0.8, release: 1.5 },
+      volume: -13,
+    }).toDestination();
+    strings.maxPolyphony = 32;
 
     const hihat = new Tone.MetalSynth({
       frequency: 400,
@@ -40,13 +68,16 @@ export function useAudio(notes, bpm, numBars) {
       volume: -3,
     }).toDestination();
 
-    synthsRef.current = { piano, hihat, snare, kick };
+    synthsRef.current = { piano, kalimba, bass, strings, hihat, snare, kick };
+    extrasRef.current = [bassFilter];
 
     return () => {
       Tone.Transport.stop();
       Tone.Transport.cancel();
       Object.values(synthsRef.current).forEach(s => s.dispose());
+      extrasRef.current.forEach(e => e.dispose());
       synthsRef.current = null;
+      extrasRef.current = [];
     };
   }, []);
 
@@ -73,22 +104,29 @@ export function useAudio(notes, bpm, numBars) {
       const sixteenth = col % SUBDIVISIONS;
       const time = `${bar}:${beat}:${sixteenth}`;
       const durationSecs = note.durationCols * sixteenthSecs;
-      return { time, noteType: note.type ?? 'piano', pitch: row.pitch, durationSecs };
+      const velocity     = (note.volume ?? 100) / 100;
+      return { time, noteType: note.type ?? 'piano', pitch: row.pitch, durationSecs, velocity };
     });
 
     const part = new Tone.Part((time, event) => {
       const synths = synthsRef.current;
       if (!synths) return;
-      const { noteType, pitch, durationSecs } = event;
+      const { noteType, pitch, durationSecs, velocity } = event;
 
       if (noteType === 'piano') {
-        synths.piano.triggerAttackRelease(pitch, durationSecs, time);
+        synths.piano.triggerAttackRelease(pitch, durationSecs, time, velocity);
+      } else if (noteType === 'kalimba') {
+        synths.kalimba.triggerAttackRelease(pitch, durationSecs, time, velocity);
+      } else if (noteType === 'bass') {
+        synths.bass.triggerAttackRelease(pitch, durationSecs, time, velocity);
+      } else if (noteType === 'strings') {
+        synths.strings.triggerAttackRelease(pitch, durationSecs, time, velocity);
       } else if (noteType === 'hihat') {
-        synths.hihat.triggerAttackRelease('16n', time);
+        synths.hihat.triggerAttackRelease('16n', time, velocity);
       } else if (noteType === 'snare') {
-        synths.snare.triggerAttackRelease('16n', time);
+        synths.snare.triggerAttackRelease('16n', time, velocity);
       } else if (noteType === 'kick') {
-        synths.kick.triggerAttackRelease('C1', '8n', time);
+        synths.kick.triggerAttackRelease('C1', '8n', time, velocity);
       }
     }, events);
 

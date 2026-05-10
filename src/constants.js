@@ -39,10 +39,13 @@ export const getTotalCols = (numBars) => numBars * COLS_PER_BAR;
 
 // ─── Instruments (user-selectable from toolbar) ───────────────────────────────
 export const INSTRUMENTS = [
-  { id: 'piano', label: 'Synth',  color: '#22c55e' },
-  { id: 'hihat', label: 'Hi-hat', color: '#ef4444' },
-  { id: 'snare', label: 'Snare',  color: '#f97316' },
-  { id: 'kick',  label: 'Kick',   color: '#1a1a1a' },
+  { id: 'piano',   label: 'Pluck',   color: '#3b82f6' },
+  { id: 'kalimba', label: 'Kalimba', color: '#f59e0b' },
+  { id: 'bass',    label: 'Bass',    color: '#8b5cf6' },
+  { id: 'strings', label: 'Synth',   color: '#14b8a6' },
+  { id: 'hihat',   label: 'Hi-hat',  color: '#ef4444' },
+  { id: 'snare',   label: 'Snare',   color: '#f97316' },
+  { id: 'kick',    label: 'Kick',    color: '#1a1a1a' },
 ];
 
 // ─── Left label panel ─────────────────────────────────────────────────────────

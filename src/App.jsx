@@ -23,6 +23,7 @@ export default function App() {
   const [selectedInstrument, setSelectedInstrument] = useState(INSTRUMENTS[0]);
   const [exporting,          setExporting]          = useState(false);
   const [selectedNoteIds,    setSelectedNoteIds]    = useState([]);
+  const [currentVolume,      setCurrentVolume]      = useState(100);
 
   const scrollRef           = useRef(null);
   const initialScrollDone   = useRef(false);
@@ -314,6 +315,8 @@ export default function App() {
         onRedo={redo}
         canUndo={canUndo}
         canRedo={canRedo}
+        volume={currentVolume}
+        onVolumeChange={setCurrentVolume}
       />
 
       <div
@@ -344,7 +347,7 @@ export default function App() {
             selectedInstrument={selectedInstrument}
             displayW={canvasDisplayW}
             selectedNoteIds={selectedNoteIds}
-            onStrokeComplete={note => setNotes(prev => [...prev, note])}
+            onStrokeComplete={note => setNotes(prev => [...prev, { ...note, volume: currentVolume }])}
             onNoteDelete={id   => setNotes(prev => prev.filter(n => n.id !== id))}
             onSelectNotes={handleSelectNotes}
             onDeselectAll={handleDeselectAll}

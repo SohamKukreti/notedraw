@@ -10,6 +10,7 @@ export default function Toolbar({
   onInstrumentChange,
   onExport, exporting,
   onUndo, onRedo, canUndo, canRedo,
+  volume, onVolumeChange,
 }) {
   return (
     <div style={{
@@ -237,6 +238,25 @@ export default function Toolbar({
           />
           <span style={{ fontSize: 13, fontWeight: 700, color: '#333', minWidth: 28, textAlign: 'right' }}>
             {bpm}
+          </span>
+        </div>
+
+        <div style={{ width: 1, height: 24, background: '#e5e5e5' }} />
+
+        {/* Volume */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, color: '#999', fontWeight: 600, letterSpacing: '0.08em' }}>VOL</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={volume}
+            onChange={e => onVolumeChange(Number(e.target.value))}
+            style={{ width: 80, accentColor: '#1a1a1a' }}
+          />
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#333', minWidth: 28, textAlign: 'right' }}>
+            {volume}
           </span>
         </div>
 

@@ -18,55 +18,97 @@ function makeNoiseBuffer(ctx) {
 }
 
 // ── Instrument schedulers ─────────────────────────────────────────────────────
-function schedulePiano(ctx, master, pitch, t, dur) {
+function schedulePiano(ctx, master, pitch, t, dur, vel) {
   const osc = ctx.createOscillator();
   osc.type = 'triangle';
   osc.frequency.value = noteToFreq(pitch);
-
   const env = ctx.createGain();
+  const pk = 0.3 * vel;
+  const sus = 0.12 * vel;
   env.gain.setValueAtTime(0.0001, t);
-  env.gain.linearRampToValueAtTime(0.3, t + 0.005);
-  env.gain.exponentialRampToValueAtTime(0.12, t + 0.1);
-  env.gain.setValueAtTime(0.12, Math.max(t + 0.11, t + dur - 0.02));
+  env.gain.linearRampToValueAtTime(pk, t + 0.005);
+  env.gain.exponentialRampToValueAtTime(Math.max(sus, 0.0001), t + 0.1);
+  env.gain.setValueAtTime(Math.max(sus, 0.0001), Math.max(t + 0.11, t + dur - 0.02));
   env.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.08);
-
   osc.connect(env); env.connect(master);
   osc.start(t); osc.stop(t + dur + 0.1);
 }
 
-function scheduleHihat(ctx, master, noiseBuf, t) {
+function scheduleHihat(ctx, master, noiseBuf, t, vel) {
   const src = ctx.createBufferSource();
   src.buffer = noiseBuf;
   const filter = ctx.createBiquadFilter();
   filter.type = 'highpass'; filter.frequency.value = 7000;
   const env = ctx.createGain();
-  env.gain.setValueAtTime(0.5, t);
+  env.gain.setValueAtTime(0.5 * vel, t);
   env.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
   src.connect(filter); filter.connect(env); env.connect(master);
   src.start(t); src.stop(t + 0.1);
 }
 
-function scheduleSnare(ctx, master, noiseBuf, t) {
+function scheduleSnare(ctx, master, noiseBuf, t, vel) {
   const src = ctx.createBufferSource();
   src.buffer = noiseBuf;
   const filter = ctx.createBiquadFilter();
   filter.type = 'bandpass'; filter.frequency.value = 1500; filter.Q.value = 0.8;
   const env = ctx.createGain();
-  env.gain.setValueAtTime(0.6, t);
+  env.gain.setValueAtTime(0.6 * vel, t);
   env.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
   src.connect(filter); filter.connect(env); env.connect(master);
   src.start(t); src.stop(t + 0.25);
 }
 
-function scheduleKick(ctx, master, t) {
+function scheduleKick(ctx, master, t, vel) {
   const osc = ctx.createOscillator();
   osc.frequency.setValueAtTime(150, t);
   osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.5);
   const env = ctx.createGain();
-  env.gain.setValueAtTime(0.9, t);
+  env.gain.setValueAtTime(0.9 * vel, t);
   env.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
   osc.connect(env); env.connect(master);
   osc.start(t); osc.stop(t + 0.55);
+}
+
+function scheduleKalimba(ctx, master, pitch, t, dur, vel) {
+  const osc = ctx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = noteToFreq(pitch);
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0.0001, t);
+  env.gain.linearRampToValueAtTime(0.35 * vel, t + 0.001);
+  env.gain.exponentialRampToValueAtTime(0.0001, t + Math.min(dur, 0.8));
+  osc.connect(env); env.connect(master);
+  osc.start(t); osc.stop(t + Math.min(dur, 0.9));
+}
+
+function scheduleBass(ctx, master, pitch, t, dur, vel) {
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.value = noteToFreq(pitch);
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass'; filter.frequency.value = 600; filter.Q.value = 1;
+  const env = ctx.createGain();
+  const pk = 0.4 * vel;
+  env.gain.setValueAtTime(0.0001, t);
+  env.gain.linearRampToValueAtTime(pk, t + 0.04);
+  env.gain.setValueAtTime(pk, Math.max(t + 0.05, t + dur - 0.05));
+  env.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.15);
+  osc.connect(filter); filter.connect(env); env.connect(master);
+  osc.start(t); osc.stop(t + dur + 0.2);
+}
+
+function scheduleStrings(ctx, master, pitch, t, dur, vel) {
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.value = noteToFreq(pitch);
+  const env = ctx.createGain();
+  const pk = 0.126 * vel;
+  env.gain.setValueAtTime(0.0001, t);
+  env.gain.linearRampToValueAtTime(pk, t + 0.35);
+  env.gain.setValueAtTime(pk, Math.max(t + 0.36, t + dur - 0.1));
+  env.gain.exponentialRampToValueAtTime(0.0001, t + dur + 1.2);
+  osc.connect(env); env.connect(master);
+  osc.start(t); osc.stop(t + dur + 1.3);
 }
 
 // ── WAV encoder (no external deps) ───────────────────────────────────────────
@@ -125,11 +167,15 @@ export async function exportMp3(notes, bpm, numBars) {
     const dur  = note.durationCols * sixteenth;
     const type = note.type ?? 'piano';
     const row  = ROWS[note.rowId];
+    const vel  = (note.volume ?? 100) / 100;
 
-    if      (type === 'piano') schedulePiano(offCtx, master, row.pitch, t, dur);
-    else if (type === 'hihat') scheduleHihat(offCtx, master, noiseBuf, t);
-    else if (type === 'snare') scheduleSnare(offCtx, master, noiseBuf, t);
-    else if (type === 'kick')  scheduleKick(offCtx, master, t);
+    if      (type === 'piano')   schedulePiano(offCtx, master, row.pitch, t, dur, vel);
+    else if (type === 'kalimba') scheduleKalimba(offCtx, master, row.pitch, t, dur, vel);
+    else if (type === 'bass')    scheduleBass(offCtx, master, row.pitch, t, dur, vel);
+    else if (type === 'strings') scheduleStrings(offCtx, master, row.pitch, t, dur, vel);
+    else if (type === 'hihat')   scheduleHihat(offCtx, master, noiseBuf, t, vel);
+    else if (type === 'snare')   scheduleSnare(offCtx, master, noiseBuf, t, vel);
+    else if (type === 'kick')    scheduleKick(offCtx, master, t, vel);
   }
 
   const audioBuffer = await offCtx.startRendering();

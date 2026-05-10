@@ -36,6 +36,7 @@ export function drawNotes(ctx, notes, selectedNoteIds = [], moveDelta = null) {
 
     const pts = note.points.map(p => ({ x: p.x + offsetX, y: p.y + offsetY }));
 
+    ctx.globalAlpha = (note.volume ?? 100) / 100;
     ctx.strokeStyle = note.color;
     ctx.lineWidth   = CELL_H * 0.52;
     ctx.lineCap     = 'round';
@@ -43,4 +44,5 @@ export function drawNotes(ctx, notes, selectedNoteIds = [], moveDelta = null) {
 
     drawBrushPath(ctx, pts);
   });
+  ctx.globalAlpha = 1;
 }
