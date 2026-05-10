@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { CANVAS_H, getCanvasW, getTotalCols, CELL_W, CELL_H } from '../constants.js';
 import { useCanvas } from '../hooks/useCanvas.js';
-import { getCanvasPoint, xToCol, yToRow } from '../utils/gridMath.js';
+import { getCanvasPoint } from '../utils/gridMath.js';
 import { snapStroke } from '../utils/snapStroke.js';
 import { hitTestNote, findNotesInBox } from '../selection.js';
 
-const ERASER_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Crect x='2' y='9' width='24' height='15' rx='3' fill='%23FFB3B3' stroke='%23CC4444' stroke-width='1.5'/%3E%3Crect x='2' y='9' width='10' height='15' rx='2' fill='%23CC8888'/%3E%3Cline x1='12' y1='9' x2='12' y2='24' stroke='%23CC4444' stroke-width='1.5'/%3E%3C/svg%3E") 14 24, auto`;
+const ERASE_LINE_HALF = CELL_H * 0.26; // half the stroke lineWidth used in drawNotes
+
+const ERASER_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='9' fill='white' stroke='black' stroke-width='2'/%3E%3C/svg%3E") 12 12, auto`;
 
 export default function PianoRoll({
   notes,
@@ -85,14 +87,27 @@ export default function PianoRoll({
     };
   }, [canvasRef, canvasW]);
 
-  const findNoteAt = useCallback((x, y, notesList, cols) => {
-    const col = xToCol(x, cols);
-    const row = yToRow(y);
-    return notesList.find(n =>
-      n.rowId === row &&
-      col >= n.startCol &&
-      col < n.startCol + n.durationCols
-    );
+  // Hit-test using the note's actual rendered pixel bounds (points ± half lineWidth),
+  // unioned with its grid cell so we never become LESS permissive than before.
+  const findNoteForErase = useCallback((x, y, notesList) => {
+    return [...notesList].reverse().find(n => {
+      if (!n.points || n.points.length === 0) return false;
+      const xs = n.points.map(p => p.x);
+      const ys = n.points.map(p => p.y);
+      const ptMinX = Math.min(...xs) - ERASE_LINE_HALF;
+      const ptMaxX = Math.max(...xs) + ERASE_LINE_HALF;
+      const ptMinY = Math.min(...ys) - ERASE_LINE_HALF;
+      const ptMaxY = Math.max(...ys) + ERASE_LINE_HALF;
+      // grid cell bounds
+      const cellMinX = n.startCol * CELL_W;
+      const cellMaxX = (n.startCol + n.durationCols) * CELL_W;
+      const cellMinY = n.rowId * CELL_H;
+      const cellMaxY = (n.rowId + 1) * CELL_H;
+      // union: hit if inside either region
+      const inPoints = x >= ptMinX && x <= ptMaxX && y >= ptMinY && y <= ptMaxY;
+      const inCell   = x >= cellMinX && x < cellMaxX && y >= cellMinY && y < cellMaxY;
+      return inPoints || inCell;
+    });
   }, []);
 
   useEffect(() => {
@@ -104,7 +119,7 @@ export default function PianoRoll({
       const pt = getRelativePt(e);
 
       if (rightErasingRef.current || currentTool === 'erase') {
-        const hit = findNoteAt(pt.x, pt.y, currentNotes, totalCols);
+        const hit = findNoteForErase(pt.x, pt.y, currentNotes);
         if (hit) onNoteDelete(hit.id);
         if (canvasRef.current) canvasRef.current.style.cursor = ERASER_CURSOR;
         return;
@@ -194,7 +209,7 @@ export default function PianoRoll({
       window.removeEventListener('mousemove', onGlobalMouseMove);
       window.removeEventListener('mouseup', onGlobalMouseUp);
     };
-  }, [getRelativePt, findNoteAt, totalCols, selectedInstrument, onNoteDelete, onNotesMove, onSelectNotes, onStrokeComplete]);
+  }, [getRelativePt, findNoteForErase, totalCols, selectedInstrument, onNoteDelete, onNotesMove, onSelectNotes, onStrokeComplete]);
 
   const getSelectionBounds = useCallback(() => {
     const selected = notes.filter(n => selectedNoteIds.includes(n.id));
@@ -249,7 +264,7 @@ export default function PianoRoll({
       draggingRef.current = true;
       setRightErasing(true);
       const pt = getCanvasPoint(e, canvasRef.current, canvasW);
-      const hit = findNoteAt(pt.x, pt.y, notes, totalCols);
+      const hit = findNoteForErase(pt.x, pt.y, notes);
       if (hit) onNoteDelete(hit.id);
       return;
     }
@@ -264,14 +279,14 @@ export default function PianoRoll({
 
     draggingRef.current = true;
     if (tool === 'erase') {
-      const hit = findNoteAt(pt.x, pt.y, notes, totalCols);
+      const hit = findNoteForErase(pt.x, pt.y, notes);
       if (hit) onNoteDelete(hit.id);
       return;
     }
 
     pointsRef.current = [pt];
     setLivePoints([pt]);
-  }, [tool, notes, totalCols, findNoteAt, onNoteDelete, canvasRef, canvasW, handleSelectMouseDown]);
+  }, [tool, notes, findNoteForErase, onNoteDelete, canvasRef, canvasW, handleSelectMouseDown]);
 
   const handleContextMenu = useCallback((e) => {
     e.preventDefault();
@@ -292,10 +307,10 @@ export default function PianoRoll({
     const pt = getTouchPt(e);
     draggingRef.current = true;
     if (tool === 'select') { handleSelectMouseDown(pt, false); return; }
-    if (tool === 'erase') { const hit = findNoteAt(pt.x, pt.y, notes, totalCols); if (hit) onNoteDelete(hit.id); return; }
+    if (tool === 'erase') { const hit = findNoteForErase(pt.x, pt.y, notes); if (hit) onNoteDelete(hit.id); return; }
     pointsRef.current = [pt];
     setLivePoints([pt]);
-  }, [tool, notes, totalCols, findNoteAt, onNoteDelete, getTouchPt, handleSelectMouseDown]);
+  }, [tool, notes, findNoteForErase, onNoteDelete, getTouchPt, handleSelectMouseDown]);
 
   const handleTouchMove = useCallback((e) => {
     e.preventDefault();
@@ -303,7 +318,7 @@ export default function PianoRoll({
     const pt = getTouchPt(e);
     const currentTool = toolRef.current;
     const currentNotes = notesRef.current;
-    if (currentTool === 'erase') { const hit = findNoteAt(pt.x, pt.y, currentNotes, totalCols); if (hit) onNoteDelete(hit.id); return; }
+    if (currentTool === 'erase') { const hit = findNoteForErase(pt.x, pt.y, currentNotes); if (hit) onNoteDelete(hit.id); return; }
     if (currentTool === 'select') {
       if (moveStartRef.current) {
         moveStartRef.current.endPt = pt;
@@ -320,7 +335,7 @@ export default function PianoRoll({
     }
     pointsRef.current = [...pointsRef.current, pt];
     setLivePoints([...pointsRef.current]);
-  }, [getTouchPt, findNoteAt, totalCols, onNoteDelete]);
+  }, [getTouchPt, findNoteForErase, onNoteDelete]);
 
   const handleTouchEnd = useCallback((e) => {
     e.preventDefault();
