@@ -1,122 +1,11 @@
-import { ROWS } from '../constants.js';
+import * as Tone from 'tone';
+import { ROWS, SUBDIVISIONS } from '../constants.js';
 
-// ── Note name → frequency ─────────────────────────────────────────────────────
-const SEMITONES = { C:0,'C#':1,D:2,'D#':3,E:4,F:5,'F#':6,G:7,'G#':8,A:9,'A#':10,B:11 };
-function noteToFreq(pitch) {
-  const m = pitch && pitch.match(/^([A-G]#?)(\d+)$/);
-  if (!m) return 440;
-  const midi = (parseInt(m[2]) + 1) * 12 + SEMITONES[m[1]];
-  return 440 * Math.pow(2, (midi - 69) / 12);
-}
-
-// ── White-noise buffer ────────────────────────────────────────────────────────
-function makeNoiseBuffer(ctx) {
-  const buf  = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-  return buf;
-}
-
-// ── Instrument schedulers ─────────────────────────────────────────────────────
-function schedulePiano(ctx, master, pitch, t, dur, vel) {
-  const osc = ctx.createOscillator();
-  osc.type = 'triangle';
-  osc.frequency.value = noteToFreq(pitch);
-  const env = ctx.createGain();
-  const pk = 0.3 * vel;
-  const sus = 0.12 * vel;
-  env.gain.setValueAtTime(0.0001, t);
-  env.gain.linearRampToValueAtTime(pk, t + 0.005);
-  env.gain.exponentialRampToValueAtTime(Math.max(sus, 0.0001), t + 0.1);
-  env.gain.setValueAtTime(Math.max(sus, 0.0001), Math.max(t + 0.11, t + dur - 0.02));
-  env.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.08);
-  osc.connect(env); env.connect(master);
-  osc.start(t); osc.stop(t + dur + 0.1);
-}
-
-function scheduleHihat(ctx, master, noiseBuf, t, vel) {
-  const src = ctx.createBufferSource();
-  src.buffer = noiseBuf;
-  const filter = ctx.createBiquadFilter();
-  filter.type = 'highpass'; filter.frequency.value = 7000;
-  const env = ctx.createGain();
-  env.gain.setValueAtTime(0.5 * vel, t);
-  env.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
-  src.connect(filter); filter.connect(env); env.connect(master);
-  src.start(t); src.stop(t + 0.1);
-}
-
-function scheduleSnare(ctx, master, noiseBuf, t, vel) {
-  const src = ctx.createBufferSource();
-  src.buffer = noiseBuf;
-  const filter = ctx.createBiquadFilter();
-  filter.type = 'bandpass'; filter.frequency.value = 1500; filter.Q.value = 0.8;
-  const env = ctx.createGain();
-  env.gain.setValueAtTime(0.6 * vel, t);
-  env.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
-  src.connect(filter); filter.connect(env); env.connect(master);
-  src.start(t); src.stop(t + 0.25);
-}
-
-function scheduleKick(ctx, master, t, vel) {
-  const osc = ctx.createOscillator();
-  osc.frequency.setValueAtTime(150, t);
-  osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.5);
-  const env = ctx.createGain();
-  env.gain.setValueAtTime(0.9 * vel, t);
-  env.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
-  osc.connect(env); env.connect(master);
-  osc.start(t); osc.stop(t + 0.55);
-}
-
-function scheduleKalimba(ctx, master, pitch, t, dur, vel) {
-  const osc = ctx.createOscillator();
-  osc.type = 'sine';
-  osc.frequency.value = noteToFreq(pitch);
-  const env = ctx.createGain();
-  env.gain.setValueAtTime(0.0001, t);
-  env.gain.linearRampToValueAtTime(0.35 * vel, t + 0.001);
-  env.gain.exponentialRampToValueAtTime(0.0001, t + Math.min(dur, 0.8));
-  osc.connect(env); env.connect(master);
-  osc.start(t); osc.stop(t + Math.min(dur, 0.9));
-}
-
-function scheduleBass(ctx, master, pitch, t, dur, vel) {
-  const osc = ctx.createOscillator();
-  osc.type = 'sawtooth';
-  osc.frequency.value = noteToFreq(pitch);
-  const filter = ctx.createBiquadFilter();
-  filter.type = 'lowpass'; filter.frequency.value = 600; filter.Q.value = 1;
-  const env = ctx.createGain();
-  const pk = 0.4 * vel;
-  env.gain.setValueAtTime(0.0001, t);
-  env.gain.linearRampToValueAtTime(pk, t + 0.04);
-  env.gain.setValueAtTime(pk, Math.max(t + 0.05, t + dur - 0.05));
-  env.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.15);
-  osc.connect(filter); filter.connect(env); env.connect(master);
-  osc.start(t); osc.stop(t + dur + 0.2);
-}
-
-function scheduleStrings(ctx, master, pitch, t, dur, vel) {
-  const osc = ctx.createOscillator();
-  osc.type = 'sawtooth';
-  osc.frequency.value = noteToFreq(pitch);
-  const env = ctx.createGain();
-  const pk = 0.126 * vel;
-  env.gain.setValueAtTime(0.0001, t);
-  env.gain.linearRampToValueAtTime(pk, t + 0.35);
-  env.gain.setValueAtTime(pk, Math.max(t + 0.36, t + dur - 0.1));
-  env.gain.exponentialRampToValueAtTime(0.0001, t + dur + 1.2);
-  osc.connect(env); env.connect(master);
-  osc.start(t); osc.stop(t + dur + 1.3);
-}
-
-// ── WAV encoder (no external deps) ───────────────────────────────────────────
+// ── WAV encoder ───────────────────────────────────────────────────────────────
 function encodeWAV(audioBuffer) {
   const numCh      = audioBuffer.numberOfChannels;
   const sampleRate = audioBuffer.sampleRate;
   const numFrames  = audioBuffer.length;
-  const bps        = 16;
   const dataBytes  = numFrames * numCh * 2;
 
   const buf  = new ArrayBuffer(44 + dataBytes);
@@ -133,7 +22,7 @@ function encodeWAV(audioBuffer) {
   view.setUint32(24, sampleRate, true);
   view.setUint32(28, sampleRate * numCh * 2, true);
   view.setUint16(32, numCh * 2, true);
-  view.setUint16(34, bps, true);
+  view.setUint16(34, 16, true);
   str(36, 'data');
   view.setUint32(40, dataBytes, true);
 
@@ -148,38 +37,126 @@ function encodeWAV(audioBuffer) {
   return buf;
 }
 
+// ── Trim trailing silence ─────────────────────────────────────────────────────
+function trimSilence(audioBuffer, threshold = 0.0001) {
+  const numCh = audioBuffer.numberOfChannels;
+  const len   = audioBuffer.length;
+  let lastAudible = 0;
+  for (let ch = 0; ch < numCh; ch++) {
+    const data = audioBuffer.getChannelData(ch);
+    for (let i = len - 1; i >= lastAudible; i--) {
+      if (Math.abs(data[i]) > threshold) { lastAudible = Math.max(lastAudible, i); break; }
+    }
+  }
+  const trimmedLen = lastAudible + 1;
+  const buf = new AudioBuffer({ numberOfChannels: numCh, length: trimmedLen, sampleRate: audioBuffer.sampleRate });
+  for (let ch = 0; ch < numCh; ch++) {
+    buf.copyToChannel(audioBuffer.getChannelData(ch).slice(0, trimmedLen), ch);
+  }
+  return buf;
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 export async function exportMp3(notes, bpm, numBars) {
-  const sampleRate    = 44100;
-  const sixteenth     = (60 / bpm) / 4;
-  const totalDuration = numBars * 4 * (60 / bpm) + 2;
-  const frameCount    = Math.ceil(totalDuration * sampleRate);
+  const sixteenthSecs = (60 / bpm) / 4;
 
-  const offCtx   = new OfflineAudioContext(2, frameCount, sampleRate);
-  const noiseBuf = makeNoiseBuffer(offCtx);
+  // Longest release tails per instrument (seconds)
+  const releaseTail = { piano: 1.2, kalimba: 0.4, bass: 0.3, strings: 1.5, kick: 1.4, snare: 0.15, hihat: 0.01 };
 
-  const master = offCtx.createGain();
-  master.gain.value = 0.7;
-  master.connect(offCtx.destination);
-
+  // Total duration = loop length + the longest release tail that extends past the loop
+  let maxTail = 0;
   for (const note of notes) {
-    const t    = note.startCol * sixteenth;
-    const dur  = note.durationCols * sixteenth;
-    const type = note.type ?? 'piano';
-    const row  = ROWS[note.rowId];
-    const vel  = (note.volume ?? 100) / 100;
-
-    if      (type === 'piano')   schedulePiano(offCtx, master, row.pitch, t, dur, vel);
-    else if (type === 'kalimba') scheduleKalimba(offCtx, master, row.pitch, t, dur, vel);
-    else if (type === 'bass')    scheduleBass(offCtx, master, row.pitch, t, dur, vel);
-    else if (type === 'strings') scheduleStrings(offCtx, master, row.pitch, t, dur, vel);
-    else if (type === 'hihat')   scheduleHihat(offCtx, master, noiseBuf, t, vel);
-    else if (type === 'snare')   scheduleSnare(offCtx, master, noiseBuf, t, vel);
-    else if (type === 'kick')    scheduleKick(offCtx, master, t, vel);
+    const endSecs = (note.startCol + note.durationCols) * sixteenthSecs;
+    const tail    = releaseTail[note.type ?? 'piano'] ?? 0;
+    maxTail = Math.max(maxTail, Math.max(0, endSecs + tail - numBars * 4 * (60 / bpm)));
   }
+  const totalDuration = numBars * 4 * (60 / bpm) + maxTail + 0.2;
 
-  const audioBuffer = await offCtx.startRendering();
-  const wavBuffer   = encodeWAV(audioBuffer);
+  const toneBuffer = await Tone.Offline(async () => {
+    Tone.Transport.bpm.value = bpm;
+
+    // ── Identical synth setup to useAudio.js ──────────────────────────────
+    const piano = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'triangle' },
+      envelope: { attack: 0.005, decay: 0.4, sustain: 0.1, release: 1.2 },
+      volume: -8,
+    }).toDestination();
+    piano.maxPolyphony = 16;
+
+    const kalimba = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'sine' },
+      envelope: { attack: 0.001, decay: 0.45, sustain: 0.0, release: 0.4 },
+      volume: -6,
+    }).toDestination();
+    kalimba.maxPolyphony = 16;
+
+    const bassFilter = new Tone.Filter({ frequency: 600, type: 'lowpass', rolloff: -24 }).toDestination();
+    const bass = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'sawtooth' },
+      envelope: { attack: 0.04, decay: 0.1, sustain: 0.9, release: 0.3 },
+      volume: -5,
+    }).connect(bassFilter);
+    bass.maxPolyphony = 8;
+
+    const strings = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'sawtooth' },
+      envelope: { attack: 0.35, decay: 0.1, sustain: 0.8, release: 1.5 },
+      volume: -13,
+    }).toDestination();
+    strings.maxPolyphony = 16;
+
+    const hihat = new Tone.MetalSynth({
+      frequency: 400,
+      envelope: { attack: 0.001, decay: 0.1, release: 0.01 },
+      harmonicity: 5.1,
+      modulationIndex: 32,
+      resonance: 4000,
+      octaves: 1.5,
+      volume: -8,
+    }).toDestination();
+
+    const snare = new Tone.NoiseSynth({
+      noise: { type: 'white' },
+      envelope: { attack: 0.001, decay: 0.18, sustain: 0, release: 0.15 },
+      volume: -6,
+    }).toDestination();
+
+    const kick = new Tone.MembraneSynth({
+      pitchDecay: 0.05,
+      octaves: 10,
+      envelope: { attack: 0.001, decay: 0.4, sustain: 0, release: 1.4 },
+      volume: -3,
+    }).toDestination();
+
+    // ── Schedule notes (identical logic to useAudio.js Part callback) ─────
+    const s16 = Tone.Time('16n').toSeconds();
+
+    for (const note of notes) {
+      const row      = ROWS[note.rowId];
+      const col      = note.startCol;
+      const bar      = Math.floor(col / (SUBDIVISIONS * 4));
+      const beat     = Math.floor((col % (SUBDIVISIONS * 4)) / SUBDIVISIONS);
+      const sixteenth = col % SUBDIVISIONS;
+      const time     = `${bar}:${beat}:${sixteenth}`;
+      const dur      = note.durationCols * s16;
+      const velocity = (note.volume ?? 100) / 100;
+      const type     = note.type ?? 'piano';
+
+      if      (type === 'piano')   piano.triggerAttackRelease(row.pitch, dur, time, velocity);
+      else if (type === 'kalimba') kalimba.triggerAttackRelease(row.pitch, dur, time, velocity);
+      else if (type === 'bass')    bass.triggerAttackRelease(row.pitch, dur, time, velocity);
+      else if (type === 'strings') strings.triggerAttackRelease(row.pitch, dur, time, velocity);
+      else if (type === 'hihat')   hihat.triggerAttackRelease('16n', time, velocity);
+      else if (type === 'snare')   snare.triggerAttackRelease('16n', time, velocity);
+      else if (type === 'kick')    kick.triggerAttackRelease('C1', '8n', time, velocity);
+    }
+
+    Tone.Transport.start();
+  }, totalDuration);
+
+  const audioBuffer = toneBuffer.get();
+  const trimmed     = trimSilence(audioBuffer);
+  const wavBuffer   = encodeWAV(trimmed);
 
   const blob = new Blob([wavBuffer], { type: 'audio/wav' });
   const url  = URL.createObjectURL(blob);

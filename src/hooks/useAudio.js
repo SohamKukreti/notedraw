@@ -18,7 +18,7 @@ export function useAudio(notes, bpm, numBars) {
       envelope: { attack: 0.005, decay: 0.4, sustain: 0.1, release: 1.2 },
       volume: -8,
     }).toDestination();
-    piano.maxPolyphony = 32;
+    piano.maxPolyphony = 16;
 
     // Kalimba — pure sine pluck, no sustain
     const kalimba = new Tone.PolySynth(Tone.Synth, {
@@ -26,7 +26,7 @@ export function useAudio(notes, bpm, numBars) {
       envelope: { attack: 0.001, decay: 0.45, sustain: 0.0, release: 0.4 },
       volume: -6,
     }).toDestination();
-    kalimba.maxPolyphony = 32;
+    kalimba.maxPolyphony = 16;
 
     // Bass — fat sawtooth through a lowpass filter
     const bassFilter = new Tone.Filter({ frequency: 600, type: 'lowpass', rolloff: -24 }).toDestination();
@@ -43,7 +43,7 @@ export function useAudio(notes, bpm, numBars) {
       envelope: { attack: 0.35, decay: 0.1, sustain: 0.8, release: 1.5 },
       volume: -13,
     }).toDestination();
-    strings.maxPolyphony = 32;
+    strings.maxPolyphony = 16;
 
     const hihat = new Tone.MetalSynth({
       frequency: 400,
@@ -85,15 +85,18 @@ export function useAudio(notes, bpm, numBars) {
   useEffect(() => {
     if (!synthsRef.current) return;
 
-    // Dispose old Part
+    // Cancel any Transport events queued by the previous Part, then dispose
+    // it. Without the cancel(), disposed-Part events that were already loaded
+    // into Tone's lookahead buffer keep accumulating across rebuilds and
+    // eventually cause lag/glitching during long sessions.
     if (partRef.current) {
+      Tone.Transport.cancel();
       partRef.current.dispose();
       partRef.current = null;
     }
 
     if (notes.length === 0) return;
 
-    // Pre-compute note duration in seconds at current BPM so it's unambiguous
     const sixteenthSecs = Tone.Time('16n').toSeconds();
 
     const events = notes.map(note => {
@@ -112,15 +115,16 @@ export function useAudio(notes, bpm, numBars) {
       const synths = synthsRef.current;
       if (!synths) return;
       const { noteType, pitch, durationSecs, velocity } = event;
+      const dur = durationSecs;
 
       if (noteType === 'piano') {
-        synths.piano.triggerAttackRelease(pitch, durationSecs, time, velocity);
+        synths.piano.triggerAttackRelease(pitch, dur, time, velocity);
       } else if (noteType === 'kalimba') {
-        synths.kalimba.triggerAttackRelease(pitch, durationSecs, time, velocity);
+        synths.kalimba.triggerAttackRelease(pitch, dur, time, velocity);
       } else if (noteType === 'bass') {
-        synths.bass.triggerAttackRelease(pitch, durationSecs, time, velocity);
+        synths.bass.triggerAttackRelease(pitch, dur, time, velocity);
       } else if (noteType === 'strings') {
-        synths.strings.triggerAttackRelease(pitch, durationSecs, time, velocity);
+        synths.strings.triggerAttackRelease(pitch, dur, time, velocity);
       } else if (noteType === 'hihat') {
         synths.hihat.triggerAttackRelease('16n', time, velocity);
       } else if (noteType === 'snare') {
@@ -135,6 +139,12 @@ export function useAudio(notes, bpm, numBars) {
     part.start(0);
 
     partRef.current = part;
+
+    return () => {
+      Tone.Transport.cancel();
+      part.dispose();
+      partRef.current = null;
+    };
   }, [notes, numBars]);
 
   // ── Sync BPM ─────────────────────────────────────────────────────────────
