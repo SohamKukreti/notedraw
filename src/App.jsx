@@ -5,13 +5,13 @@ import PianoRoll from './components/PianoRoll.jsx';
 import { useAudio } from './hooks/useAudio.js';
 import { useUndoRedo } from './hooks/useUndoRedo.js';
 import { exportMp3 } from './utils/exportMp3.js';
-import { INSTRUMENTS, COLS_PER_BAR, LABEL_W, CELL_H, CELL_W, getTotalCols } from './constants.js';
+import { INSTRUMENTS, COLS_PER_BAR, LABEL_W, CELL_H, CELL_W, CANVAS_H, getTotalCols } from './constants.js';
 import { serializeNotes } from './selection.js';
 
 const E4_Y = (6 * 12 + 7) * CELL_H;
 
 const MAX_FIT_BARS  = 4;
-const BTN_W         = 72;
+const BTN_W         = 88;
 const GRID_ZOOM     = 1.2;
 
 export default function App() {
@@ -271,14 +271,14 @@ export default function App() {
   }, [undo, redo, handleCopy, handlePaste, handleDeleteSelected, handleDeselectAll]);
 
   const sectionBtn = (disabled) => ({
-    width: 36,
-    alignSelf: 'stretch',
+    width: 44,
+    height: CANVAS_H,
     flexShrink: 0,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 8,
     background: '#fafafa',
     border: 'none',
     cursor: disabled ? 'not-allowed' : 'pointer',
@@ -317,6 +317,9 @@ export default function App() {
         canRedo={canRedo}
         volume={currentVolume}
         onVolumeChange={setCurrentVolume}
+        numBars={numBars}
+        onAddBar={handleAddBar}
+        onRemoveBar={handleRemoveBar}
       />
 
       <div
@@ -333,7 +336,7 @@ export default function App() {
       >
         <div style={{
           display: 'flex',
-          alignItems: 'stretch',
+          alignItems: 'flex-start',
           minWidth: LABEL_W + canvasDisplayW + BTN_W,
           flex: 1,
         }}>
@@ -362,13 +365,13 @@ export default function App() {
             title="Remove last bar"
             style={{
               ...sectionBtn(numBars <= 1),
-              borderLeft: '1px solid #e8e8e8',
+              borderLeft: '2px solid #e8e8e8',
             }}
-            onMouseEnter={e => { if (numBars > 1) { e.currentTarget.style.background = '#fff0f0'; e.currentTarget.style.color = '#e55'; } }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#fafafa'; e.currentTarget.style.color = numBars <= 1 ? '#ddd' : '#aaa'; }}
+            onMouseEnter={e => { if (numBars > 1) { e.currentTarget.style.background = '#fff0f0'; e.currentTarget.style.color = '#e55'; e.currentTarget.style.borderLeft = '2px solid #ffcccc'; } }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#fafafa'; e.currentTarget.style.color = numBars <= 1 ? '#ddd' : '#999'; e.currentTarget.style.borderLeft = '2px solid #e8e8e8'; }}
           >
-            <span style={{ fontSize: 20, lineHeight: 1, fontWeight: 300 }}>−</span>
-            <span style={{ fontSize: 8, letterSpacing: '0.06em', fontWeight: 600, writingMode: 'vertical-rl' }}>DEL BAR</span>
+            <span style={{ fontSize: 22, lineHeight: 1, fontWeight: 400 }}>−</span>
+            <span style={{ fontSize: 9, letterSpacing: '0.06em', fontWeight: 700, writingMode: 'vertical-rl', color: 'inherit' }}>BAR</span>
           </button>
 
           <button
@@ -376,13 +379,14 @@ export default function App() {
             title="Add one bar"
             style={{
               ...sectionBtn(false),
-              borderLeft: '2px dashed #d0d0d0',
+              borderLeft: '2px dashed #b0d0b0',
+              color: '#5a9',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#f0f7f0'; e.currentTarget.style.color = '#22c55e'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#fafafa'; e.currentTarget.style.color = '#aaa'; }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#f0fbf0'; e.currentTarget.style.color = '#22c55e'; e.currentTarget.style.borderLeft = '2px dashed #22c55e'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#fafafa'; e.currentTarget.style.color = '#5a9'; e.currentTarget.style.borderLeft = '2px dashed #b0d0b0'; }}
           >
-            <span style={{ fontSize: 20, lineHeight: 1, fontWeight: 300 }}>+</span>
-            <span style={{ fontSize: 8, letterSpacing: '0.06em', fontWeight: 600, writingMode: 'vertical-rl' }}>ADD BAR</span>
+            <span style={{ fontSize: 22, lineHeight: 1, fontWeight: 400 }}>+</span>
+            <span style={{ fontSize: 9, letterSpacing: '0.06em', fontWeight: 700, writingMode: 'vertical-rl', color: 'inherit' }}>BAR</span>
           </button>
         </div>
       </div>

@@ -11,6 +11,7 @@ export default function Toolbar({
   onExport, exporting,
   onUndo, onRedo, canUndo, canRedo,
   volume, onVolumeChange,
+  numBars, onAddBar, onRemoveBar,
 }) {
   return (
     <div style={{
@@ -152,6 +153,55 @@ export default function Toolbar({
             }}
           >
             ↪ Redo
+          </button>
+        </div>
+
+        {/* Bar controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '1px solid #e0e0e0', borderRadius: 6, overflow: 'hidden', marginLeft: 4 }}>
+          <button
+            onClick={onRemoveBar}
+            disabled={numBars <= 1}
+            title="Remove last bar"
+            style={{
+              padding: '4px 10px',
+              fontSize: 12,
+              fontWeight: 600,
+              background: '#fff',
+              color: numBars <= 1 ? '#ccc' : '#e55',
+              border: 'none',
+              borderRight: '1px solid #e0e0e0',
+              cursor: numBars <= 1 ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            − Bar
+          </button>
+          <span style={{
+            padding: '4px 10px',
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#555',
+            background: '#f8f8f8',
+            borderRight: '1px solid #e0e0e0',
+            whiteSpace: 'nowrap',
+          }}>
+            {numBars} {numBars === 1 ? 'bar' : 'bars'}
+          </span>
+          <button
+            onClick={onAddBar}
+            title="Add one bar"
+            style={{
+              padding: '4px 10px',
+              fontSize: 12,
+              fontWeight: 600,
+              background: '#fff',
+              color: '#22c55e',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            + Bar
           </button>
         </div>
 
