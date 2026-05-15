@@ -126,7 +126,7 @@ export function useAudio(notes, bpm, numBars) {
       } else if (noteType === 'strings') {
         synths.strings.triggerAttackRelease(pitch, dur, time, velocity);
       } else if (noteType === 'hihat') {
-        synths.hihat.triggerAttackRelease('16n', time, velocity);
+        synths.hihat.triggerAttackRelease('16n', '16n', time, velocity);
       } else if (noteType === 'snare') {
         synths.snare.triggerAttackRelease('16n', time, velocity);
       } else if (noteType === 'kick') {
