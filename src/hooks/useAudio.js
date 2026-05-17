@@ -45,15 +45,12 @@ export function useAudio(notes, bpm, numBars) {
     }).toDestination();
     strings.maxPolyphony = 16;
 
-    const hihat = new Tone.MetalSynth({
-      frequency: 400,
-      envelope: { attack: 0.001, decay: 0.1, release: 0.01 },
-      harmonicity: 5.1,
-      modulationIndex: 32,
-      resonance: 4000,
-      octaves: 1.5,
-      volume: -8,
-    }).toDestination();
+    const hihatFilter = new Tone.Filter({ frequency: 7000, type: 'highpass', rolloff: -24 }).toDestination();
+    const hihat = new Tone.NoiseSynth({
+      noise: { type: 'white' },
+      envelope: { attack: 0.001, decay: 0.07, sustain: 0, release: 0.04 },
+      volume: -10,
+    }).connect(hihatFilter);
 
     const snare = new Tone.NoiseSynth({
       noise: { type: 'white' },
@@ -85,12 +82,7 @@ export function useAudio(notes, bpm, numBars) {
   useEffect(() => {
     if (!synthsRef.current) return;
 
-    // Cancel any Transport events queued by the previous Part, then dispose
-    // it. Without the cancel(), disposed-Part events that were already loaded
-    // into Tone's lookahead buffer keep accumulating across rebuilds and
-    // eventually cause lag/glitching during long sessions.
     if (partRef.current) {
-      Tone.Transport.cancel();
       partRef.current.dispose();
       partRef.current = null;
     }
@@ -111,7 +103,13 @@ export function useAudio(notes, bpm, numBars) {
       return { time, noteType: note.type ?? 'piano', pitch: row.pitch, durationSecs, velocity };
     });
 
+    // alive flag: prevents stale Part callbacks that fire from Tone's lookahead
+    // buffer (after dispose) from double-triggering notes. Avoids Transport.cancel()
+    // which wiped upcoming events and caused notes near the playhead to drop.
+    let alive = true;
+
     const part = new Tone.Part((time, event) => {
+      if (!alive) return;
       const synths = synthsRef.current;
       if (!synths) return;
       const { noteType, pitch, durationSecs, velocity } = event;
@@ -126,7 +124,7 @@ export function useAudio(notes, bpm, numBars) {
       } else if (noteType === 'strings') {
         synths.strings.triggerAttackRelease(pitch, dur, time, velocity);
       } else if (noteType === 'hihat') {
-        synths.hihat.triggerAttackRelease('16n', '16n', time, velocity);
+        synths.hihat.triggerAttackRelease('16n', time, velocity);
       } else if (noteType === 'snare') {
         synths.snare.triggerAttackRelease('16n', time, velocity);
       } else if (noteType === 'kick') {
@@ -141,7 +139,7 @@ export function useAudio(notes, bpm, numBars) {
     partRef.current = part;
 
     return () => {
-      Tone.Transport.cancel();
+      alive = false;
       part.dispose();
       partRef.current = null;
     };
@@ -157,8 +155,14 @@ export function useAudio(notes, bpm, numBars) {
     await Tone.start(); // unlock AudioContext (requires user gesture)
     if (Tone.Transport.state === 'stopped') {
       Tone.Transport.position = 0;
+      // '+0.1' gives the scheduler 100ms of lead time so events at position
+      // 0:0:0 aren't scheduled in the past by the time the first scheduler
+      // tick runs (~25ms after start). Without this, MembraneSynth (kick)
+      // silently drops its frequency ramp on the very first beat.
+      Tone.Transport.start('+0.1');
+    } else {
+      Tone.Transport.start();
     }
-    Tone.Transport.start();
   }, []);
 
   const pause = useCallback(() => {
